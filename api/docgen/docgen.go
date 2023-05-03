@@ -479,6 +479,9 @@ func ExampleValue(method string, t, parent reflect.Type) interface{} {
 			es := exampleStruct(method, t.Elem(), t)
 			ExampleValues[t] = es
 			return es
+		} else if t.Elem().Kind() == reflect.String {
+			str := "string value"
+			return &str
 		}
 	case reflect.Interface:
 		return struct{}{}
