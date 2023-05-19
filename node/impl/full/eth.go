@@ -1152,7 +1152,32 @@ func (e *EthEvent) EthGetLogs(ctx context.Context, filterSpec *ethtypes.EthFilte
 
 	_ = e.uninstallFilter(ctx, f)
 
-	return ethFilterResultFromEvents(ces, e.SubManager.StateAPI)
+	var deduped []*filter.CollectedEvent
+	for _, ce := range ces {
+		if !ce.Reverted {
+			deduped = append(deduped, ce)
+			continue
+		}
+
+		// We have a reverted event, go backwards through the list and remove the corresponding event
+		// TODO: Optimize this loop
+		found := false
+		for i := len(deduped) - 1; i >= 0; i-- {
+			if deduped[i].EqualsExceptRevert(ce) {
+				deduped = append(deduped[:i], deduped[i+1:]...)
+				found = true
+				break
+			}
+		}
+
+		// should never happen, but just in case
+		if !found {
+			return nil, xerrors.Errorf("failed to find event in tipset %s, message %s to revert", ce.TipSetKey, ce.MsgCid)
+		}
+	}
+	log.Infof("EthGetLogs: %d events, %d deduped", len(ces), len(deduped))
+
+	return ethFilterResultFromEvents(deduped, e.SubManager.StateAPI)
 }
 
 func (e *EthEvent) EthGetFilterChanges(ctx context.Context, id ethtypes.EthFilterID) (*ethtypes.EthFilterResult, error) {
